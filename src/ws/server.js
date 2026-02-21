@@ -1,4 +1,4 @@
-import WebSocket from 'ws';
+import WebSocket, { WebSocketServer } from 'ws';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
@@ -15,7 +15,7 @@ function broadcast(wss, payload) {
 }
 
 export function attachWebSocketServer(server) {
-  const wss = new WebSocket.Server({ server, path: '/ws', maxPayload: 1024 * 1024 });
+  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1024 * 1024 });
 
   const heartbeat = setInterval(() => {
     for (const socket of wss.clients) {

@@ -18,6 +18,16 @@ Sportz provides a REST API for managing sports matches and live commentary, with
 
 ```
 sportz/
+├── frontend/                      # React + Vite SPA
+│   ├── src/
+│   │   ├── api.js                 # API client
+│   │   ├── App.jsx, main.jsx     # App entry & layout
+│   │   ├── hooks/useWebSocket.jsx # WebSocket + toasts
+│   │   ├── pages/                 # MatchList, CreateMatch, MatchDetail
+│   │   └── App.css
+│   ├── index.html
+│   ├── vite.config.js
+│   └── README.md                  # How to run frontend
 ├── drizzle/                       # Generated migration files
 ├── src/
 │   ├── db/
@@ -94,6 +104,14 @@ npm run dev
 ```
 
 The server starts on `http://localhost:8000` with a WebSocket endpoint at `ws://localhost:8000/ws`.
+
+### Run the Frontend (React)
+
+1. **Start the API** (from project root): `npm run dev` — keep it running on port 8000.
+2. **In a second terminal**, from project root: `cd frontend`, then `npm install` (first time only), then `npm run dev`.
+3. Open [http://localhost:5173](http://localhost:5173).
+
+See **`frontend/README.md`** for step-by-step instructions and how to see real-time updates.
 
 ## API Reference
 
