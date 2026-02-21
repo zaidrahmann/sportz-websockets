@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { matchesApi, commentaryApi } from '../api.js';
+import { useWebSocket } from '../hooks/useWebSocket.jsx';
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -9,6 +10,13 @@ function formatDate(iso) {
 
 export function MatchDetail() {
   const { id } = useParams();
+  const {
+    ws,
+    subscribeToMatch,
+    unsubscribeFromMatch,
+    registerCommentaryHandler,
+    unregisterCommentaryHandler,
+  } = useWebSocket();
   const [match, setMatch] = useState(null);
   const [commentary, setCommentary] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +26,12 @@ export function MatchDetail() {
   const [commentForm, setCommentForm] = useState({ message: '', minute: '', eventType: '' });
   const [commentSaving, setCommentSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const handleLiveCommentary = useCallback((entry) => {
+    setCommentary((prev) =>
+      prev.some((c) => c.id === entry.id) ? prev : [entry, ...prev]
+    );
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -34,6 +48,20 @@ export function MatchDetail() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    registerCommentaryHandler(id, handleLiveCommentary);
+    subscribeToMatch(id);
+    return () => {
+      unsubscribeFromMatch(id);
+      unregisterCommentaryHandler(id);
+    };
+  }, [id, registerCommentaryHandler, unregisterCommentaryHandler, subscribeToMatch, unsubscribeFromMatch, handleLiveCommentary]);
+
+  useEffect(() => {
+    if (ws?.readyState === WebSocket.OPEN && id) subscribeToMatch(id);
+  }, [ws, id, subscribeToMatch]);
 
   async function handleScoreSubmit(e) {
     e.preventDefault();

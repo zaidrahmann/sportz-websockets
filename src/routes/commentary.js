@@ -8,7 +8,10 @@ import {
   commentaryIdParamSchema,
   listCommentaryQuerySchema,
   createCommentarySchema,
+  matchIdParamSchema,
 } from '../validation/commentary.js';
+
+const MAX_LIMIT = 100;
 
 export const commentaryRouter = Router({ mergeParams: true });
 
@@ -23,52 +26,80 @@ async function ensureMatchExists(matchId) {
 }
 
 commentaryRouter.get('/', async (req, res) => {
-  const params = commentaryParamsSchema.safeParse(req.params);
-  if (!params.success) throw new AppError('Invalid match ID', 400, params.error.issues);
-
-  const query = listCommentaryQuerySchema.safeParse(req.query);
-  if (!query.success) throw new AppError('Invalid query parameters', 400, query.error.issues);
-
-  await ensureMatchExists(params.data.matchId);
-
-  const limit = query.data.limit ?? 50;
-  const offset = query.data.offset ?? 0;
-
-  const conditions = [eq(commentary.matchId, params.data.matchId)];
-  if (query.data.eventType) {
-    conditions.push(eq(commentary.eventType, query.data.eventType));
+  const paramsResult = matchIdParamSchema.safeParse(req.params);
+  if (!paramsResult.success) {
+    return res.status(400).json({
+      error: 'Invalid match ID.',
+      details: paramsResult.error.issues,
+    });
   }
 
-  const entries = await db
-    .select()
-    .from(commentary)
-    .where(and(...conditions))
-    .orderBy(desc(commentary.createdAt))
-    .limit(limit)
-    .offset(offset);
+  const queryResult = listCommentaryQuerySchema.safeParse(req.query);
+  if (!queryResult.success) {
+    return res.status(400).json({
+      error: 'Invalid query parameters.',
+      details: queryResult.error.issues,
+    });
+  }
 
-  res.json({ data: entries, pagination: { limit, offset } });
+  await ensureMatchExists(paramsResult.data.matchId);
+
+  const limit = Math.min(queryResult.data.limit ?? 100, MAX_LIMIT);
+
+  try {
+    const entries = await db
+      .select()
+      .from(commentary)
+      .where(eq(commentary.matchId, paramsResult.data.matchId))
+      .orderBy(desc(commentary.createdAt))
+      .limit(limit);
+
+    res.json({ data: entries, pagination: { limit } });
+  } catch (error) {
+    console.error('Failed to list commentary:', error);
+    return res.status(500).json({ error: 'Failed to list commentary.' });
+  }
 });
 
 commentaryRouter.post('/', async (req, res) => {
-  const params = commentaryParamsSchema.safeParse(req.params);
-  if (!params.success) throw new AppError('Invalid match ID', 400, params.error.issues);
-
-  const parsed = createCommentarySchema.safeParse(req.body);
-  if (!parsed.success) throw new AppError('Invalid payload', 400, parsed.error.issues);
-
-  await ensureMatchExists(params.data.matchId);
-
-  const [entry] = await db
-    .insert(commentary)
-    .values({ ...parsed.data, matchId: params.data.matchId })
-    .returning();
-
-  if (req.app.locals.broadcastCommentaryAdded) {
-    req.app.locals.broadcastCommentaryAdded(entry);
+  const paramsResult = matchIdParamSchema.safeParse(req.params);
+  if (!paramsResult.success) {
+    return res.status(400).json({
+      error: 'Invalid match ID.',
+      details: paramsResult.error.issues,
+    });
   }
 
-  res.status(201).json({ data: entry });
+  const bodyResult = createCommentarySchema.safeParse(req.body);
+  if (!bodyResult.success) {
+    return res.status(400).json({
+      error: 'Invalid commentary payload.',
+      details: bodyResult.error.issues,
+    });
+  }
+
+  await ensureMatchExists(paramsResult.data.matchId);
+
+  try {
+    const { minute, ...rest } = bodyResult.data;
+    const [result] = await db
+      .insert(commentary)
+      .values({
+        matchId: paramsResult.data.matchId,
+        minute,
+        ...rest,
+      })
+      .returning();
+
+    if (req.app.locals.broadcastCommentaryAdded) {
+      req.app.locals.broadcastCommentaryAdded(result);
+    }
+
+    res.status(201).json({ data: result });
+  } catch (error) {
+    console.error('Failed to create commentary:', error);
+    return res.status(500).json({ error: 'Failed to create commentary.' });
+  }
 });
 
 commentaryRouter.delete('/:id', async (req, res) => {
