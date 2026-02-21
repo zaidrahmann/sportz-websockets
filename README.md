@@ -12,6 +12,7 @@ Sportz provides a REST API for managing sports matches and live commentary, with
 - **ORM:** Drizzle ORM with Drizzle Kit migrations
 - **Validation:** Zod v4
 - **WebSockets:** ws (with ping/pong heartbeat)
+- **Security:** Arcjet (shield, bot detection, sliding-window rate limiting for HTTP and WebSocket)
 - **Testing:** Node.js built-in test runner
 
 ## Project Structure
@@ -34,6 +35,7 @@ sportz/
 │   │   ├── db.js                  # Database client (node-postgres pool)
 │   │   └── schema.js              # Drizzle table definitions
 │   ├── middleware/
+│   │   ├── arcjet.js               # Arcjet (HTTP + WebSocket protection)
 │   │   └── error-handler.js       # Centralized error handling
 │   ├── routes/
 │   │   ├── matches.js             # Match CRUD endpoints
@@ -80,9 +82,14 @@ DATABASE_URL="postgresql://<user>:<password>@<host>/<database>?sslmode=require"
 PORT=8000
 HOST=0.0.0.0
 NODE_ENV=development
+# Optional: Arcjet security. Get a key at https://app.arcjet.com
+ARCJET_KEY="ajkey_..."
 ```
 
-The server validates required environment variables at startup and fails fast with a clear message if any are missing.
+The server validates required environment variables at startup and fails fast with a clear message if any are missing. If `ARCJET_KEY` is set:
+
+- **HTTP:** Shield, bot detection (search-engine and preview bots allowed), and sliding-window rate limit (50 requests per 10s per client). Denials return 429 (rate limit) or 403 (forbidden); Arcjet errors return 503.
+- **WebSocket:** Same shield and bot rules, plus a stricter sliding window (5 connections per 2s per client). Denied connections are closed with code 1013 (rate limit) or 1008 (access denied); errors close with 1011 (Service Unavailable).
 
 ### Database Setup
 
@@ -274,7 +281,7 @@ Connect to `ws://localhost:8000/ws` to receive real-time events.
 | `commentary_added` | Commentary added via POST   | `{ type: "commentary_added", data: <entry> }`|
 | `status_change`    | Status sync job transitions | `{ type: "status_change", data: <match> }`   |
 
-The server runs a **ping/pong heartbeat** every 30 seconds to detect and clean up dead connections.
+The server runs a **ping/pong heartbeat** every 30 seconds to detect and clean up dead connections. When `ARCJET_KEY` is set, new connections are checked before the welcome message; denied clients are closed with the appropriate code and reason (e.g. "Rate limit exceeded", "Access denied").
 
 ## Status Sync
 
