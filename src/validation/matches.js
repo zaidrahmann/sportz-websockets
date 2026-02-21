@@ -7,12 +7,8 @@ export const MATCH_STATUS = {
 };
 
 export const listMatchesQuerySchema = z.object({
-  limit: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(100)
-    .optional(),
+  limit: z.coerce.number().int().positive().max(100).optional(),
+  offset: z.coerce.number().int().nonnegative().optional(),
 });
 
 export const matchIdParamSchema = z.object({
@@ -47,6 +43,20 @@ export const createMatchSchema = z
         message: 'endTime must be after startTime',
       });
     }
+  });
+
+export const updateMatchSchema = z
+  .object({
+    sport: z.string().nonempty(),
+    homeTeam: z.string().nonempty(),
+    awayTeam: z.string().nonempty(),
+    startTime: isoDateString,
+    endTime: isoDateString,
+    status: z.enum(['scheduled', 'live', 'finished']),
+  })
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided',
   });
 
 export const updateScoreSchema = z.object({

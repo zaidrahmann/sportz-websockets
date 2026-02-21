@@ -1,29 +1,40 @@
-import express from "express";
-import http from "http";
-import matchRouter from "./routes/matches.js";
-import { attachWebSocketServer } from "./ws/server.js";
-
-
-const PORT = Number(process.env.PORT || 8000);
-const HOST = process.env.HOST || "0.0.0.0";
+import { env } from './utils/env.js';
+import express from 'express';
+import cors from 'cors';
+import http from 'http';
+import matchRouter from './routes/matches.js';
+import commentaryRouter from './routes/commentary.js';
+import { attachWebSocketServer } from './ws/server.js';
+import { startStatusSyncJob } from './utils/status-sync.js';
+import { errorHandler } from './middleware/error-handler.js';
 
 const app = express();
 const server = http.createServer(app);
 
+app.use(cors());
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.json({ message: "Welcome to Sportz API" });
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to Sportz API' });
 });
 
-app.use("/matches", matchRouter);
+app.use('/matches', matchRouter);
+app.use('/matches/:matchId/commentary', commentaryRouter);
 
-const {broadcastMatchCreated} = attachWebSocketServer(server);
-app.locals.broadcastMatchCreated = broadcastMatchCreated;
+const ws = attachWebSocketServer(server);
+app.locals.broadcastMatchCreated = ws.broadcastMatchCreated;
+app.locals.broadcastScoreUpdate = ws.broadcastScoreUpdate;
+app.locals.broadcastCommentaryAdded = ws.broadcastCommentaryAdded;
 
-server.listen(PORT, HOST, () => {
-    const baseUrl = HOST === "0.0.0.0" ? `http://localhost:${PORT}` : `http://${HOST}:${PORT}`;
-  
-    console.log(`Server running at ${baseUrl}`);
-    console.log(`WebSocket server running at ${baseUrl.replace("http", "ws")}/ws`);
+startStatusSyncJob(ws.broadcastStatusChange);
+
+app.use(errorHandler);
+
+server.listen(env.PORT, env.HOST, () => {
+  const baseUrl = env.HOST === '0.0.0.0'
+    ? `http://localhost:${env.PORT}`
+    : `http://${env.HOST}:${env.PORT}`;
+
+  console.log(`Server running at ${baseUrl}`);
+  console.log(`WebSocket server running at ${baseUrl.replace('http', 'ws')}/ws`);
 });
