@@ -14,8 +14,12 @@ function broadcast(wss, payload) {
   }
 }
 
-export function attachWebSocketServer(server) {
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 1024 * 1024 });
+export function attachWebSocketServer(server, wsArcjet = null) {
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    maxPayload: 1024 * 1024,
+  });
 
   const heartbeat = setInterval(() => {
     for (const socket of wss.clients) {
@@ -30,7 +34,23 @@ export function attachWebSocketServer(server) {
 
   wss.on('close', () => clearInterval(heartbeat));
 
-  wss.on('connection', (socket) => {
+  wss.on('connection', async (socket, req) => {
+    if (wsArcjet) {
+      try {
+        const decision = await wsArcjet.protect(req);
+        if (decision.isDenied()) {
+          const code = decision.reason?.isRateLimit?.() ? 1013 : 1008;
+          const reason = decision.reason?.isRateLimit?.() ? 'Rate limit exceeded' : 'Access denied';
+          socket.close(code, reason);
+          return;
+        }
+      } catch (e) {
+        console.error('WS connection error', e);
+        socket.close(1011, 'Service Unavailable');
+        return;
+      }
+    }
+
     socket.isAlive = true;
     socket.on('pong', () => { socket.isAlive = true; });
     socket.on('error', console.error);

@@ -15,4 +15,5 @@ export const env = {
   PORT: Number(process.env.PORT || 8000),
   HOST: process.env.HOST || '0.0.0.0',
   NODE_ENV: process.env.NODE_ENV || 'development',
+  ARCJET_KEY: process.env.ARCJET_KEY,
 };

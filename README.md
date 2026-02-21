@@ -80,9 +80,11 @@ DATABASE_URL="postgresql://<user>:<password>@<host>/<database>?sslmode=require"
 PORT=8000
 HOST=0.0.0.0
 NODE_ENV=development
+# Optional: Arcjet security (shield + rate limit). Get a key at https://app.arcjet.com
+ARCJET_KEY="ajkey_..."
 ```
 
-The server validates required environment variables at startup and fails fast with a clear message if any are missing.
+The server validates required environment variables at startup and fails fast with a clear message if any are missing. If `ARCJET_KEY` is set, all HTTP requests are protected by Arcjet (attack shield, bot detection, and 100 req/min rate limit per client).
 
 ### Database Setup
 
